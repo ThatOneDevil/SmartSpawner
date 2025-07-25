@@ -4,12 +4,14 @@ import github.nighter.smartspawner.SmartSpawner;
 import github.nighter.smartspawner.hooks.protections.CheckOpenMenu;
 import github.nighter.smartspawner.language.MessageService;
 import github.nighter.smartspawner.nms.ParticleWrapper;
+import github.nighter.smartspawner.sellwands.SellwandManager;
 import github.nighter.smartspawner.spawner.gui.main.SpawnerMenuUI;
 import github.nighter.smartspawner.spawner.interactions.stack.SpawnerStackHandler;
 import github.nighter.smartspawner.spawner.interactions.type.SpawnEggHandler;
 import github.nighter.smartspawner.spawner.properties.SpawnerData;
 import github.nighter.smartspawner.spawner.properties.SpawnerManager;
 import github.nighter.smartspawner.Scheduler;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -91,6 +93,19 @@ public class SpawnerClickManager implements Listener {
 
         // Check if player is holding armor in either hand - allow equipping but don't open menu
         if (isArmor(itemType) || isArmor(offhandType)) {
+            return;
+        }
+
+        //handle sellwand usage
+        if (heldItem.getType() == Material.BLAZE_ROD){
+            SellwandManager sellwandManager = new SellwandManager(heldItem);
+            if (sellwandManager.isSellwand(heldItem)) {
+                if (plugin.getSpawnerSellManager().sellAllItems(player, spawner, sellwandManager.getMulti(heldItem))) {
+                    if (!sellwandManager.sellWandUse()){
+                        player.getInventory().remove(heldItem);
+                    }
+                }
+            }
             return;
         }
 

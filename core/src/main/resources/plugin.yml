@@ -41,6 +41,10 @@ commands:
   smartspawner:
     description: Main command for SmartSpawner plugin
     aliases: [ ss, spawner ]
+  smartSellwand:
+    description: Command to sell items in spawner storage GUI
+    usage: /smartSellwand
+    permission: smartspawner.sellwand
 
 permissions:
   smartspawner.reload:
@@ -70,3 +74,4 @@ permissions:
   smartspawner.limits.bypass:
     description: Bypass spawner limits per chunk
     default: false
+

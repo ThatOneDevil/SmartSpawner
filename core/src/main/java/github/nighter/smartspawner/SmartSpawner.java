@@ -11,6 +11,7 @@ import github.nighter.smartspawner.commands.list.ListCommand;
 import github.nighter.smartspawner.commands.list.SpawnerListGUI;
 import github.nighter.smartspawner.commands.list.UserPreferenceCache;
 import github.nighter.smartspawner.commands.reload.ReloadCommand;
+import github.nighter.smartspawner.sellwands.SellwandCommand;
 import github.nighter.smartspawner.spawner.natural.NaturalSpawnerListener;
 import github.nighter.smartspawner.utils.TimeFormatter;
 import github.nighter.smartspawner.hooks.economy.ItemPriceManager;
@@ -141,6 +142,9 @@ public class SmartSpawner extends JavaPlugin implements SmartSpawnerPlugin {
         // Initialize plugin integrations
         this.integrationManager = new IntegrationManager(this);
         integrationManager.initializeIntegrations();
+
+        //sellwand command reg
+        getServer().getPluginCommand("smartSellwand").setExecutor(new SellwandCommand());
 
         // Check for data migration needs
         migrateDataIfNeeded();

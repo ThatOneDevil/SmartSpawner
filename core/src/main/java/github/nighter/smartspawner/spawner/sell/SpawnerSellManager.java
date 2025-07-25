@@ -52,7 +52,7 @@ public class SpawnerSellManager {
 
             // Process selling async to avoid blocking main thread
             Scheduler.runTaskAsync(() -> {
-                SellResult result = calculateSellValue(consolidatedItems, spawner);
+                SellResult result = calculateSellValue(consolidatedItems, spawner, 1);
 
                 // Store the result in SpawnerData for later access
                 spawner.setLastSellResult(result);
@@ -66,6 +66,46 @@ public class SpawnerSellManager {
         } finally {
             spawner.getLock().unlock();
         }
+    }
+
+    public boolean sellAllItems(Player player, SpawnerData spawner, float sellMultiplier) {
+        // Try to acquire lock for thread safety
+        boolean lockAcquired = spawner.getLock().tryLock();
+        if (!lockAcquired) {
+            messageService.sendMessage(player, "sale_failed");
+            return false;
+        }
+
+        try {
+            VirtualInventory virtualInv = spawner.getVirtualInventory();
+
+            // Quick check if there are items to sell
+            if (virtualInv.getUsedSlots() == 0) {
+                messageService.sendMessage(player, "no_items");
+                return false;
+            }
+
+            // Get all items for async processing
+            Map<VirtualInventory.ItemSignature, Long> consolidatedItems = virtualInv.getConsolidatedItems();
+
+            // Process selling async to avoid blocking main thread
+            Scheduler.runTaskAsync(() -> {
+                SellResult result = calculateSellValue(consolidatedItems, spawner, sellMultiplier);
+
+                // Store the result in SpawnerData for later access
+                spawner.setLastSellResult(result);
+
+                // Return to main thread for inventory operations and player interaction
+                Scheduler.runLocationTask(spawner.getSpawnerLocation(), () -> {
+                    processSellResult(player, spawner, result);
+                });
+            });
+
+        } finally {
+            spawner.getLock().unlock();
+
+        }
+        return true;
     }
 
 
@@ -156,7 +196,7 @@ public class SpawnerSellManager {
             Map<VirtualInventory.ItemSignature, Long> consolidatedItems =
                     new HashMap<>(virtualInv.getConsolidatedItems());
 
-            return calculateSellValue(consolidatedItems, spawner);
+            return calculateSellValue(consolidatedItems, spawner, 1);
         } finally {
             spawner.getLock().unlock();
         }
@@ -167,7 +207,7 @@ public class SpawnerSellManager {
      * This method processes large inventories efficiently without blocking
      */
     private SellResult calculateSellValue(Map<VirtualInventory.ItemSignature, Long> consolidatedItems,
-                                          SpawnerData spawner) {
+                                          SpawnerData spawner, float sellMultiplier) {
         double totalValue = 0.0;
         long totalItemsSold = 0;
         List<ItemStack> itemsToRemove = new ArrayList<>();
@@ -207,7 +247,7 @@ public class SpawnerSellManager {
             }
         }
 
-        return new SellResult(totalValue, totalItemsSold, itemsToRemove);
+        return new SellResult((totalValue*sellMultiplier), totalItemsSold, itemsToRemove);
     }
 
     /**
