@@ -43,7 +43,7 @@ public class SellwandCommand implements CommandExecutor {
 
             SellwandManager sellwandManager = new SellwandManager(new ItemStack(Material.BLAZE_ROD));
 
-            player.getInventory().addItem(sellwandManager.getSellwand(uses, multiplier));
+            player.getInventory().addItem(sellwandManager.getSellwand(uses, multiplier, 0L, 0.0));
 
             String usesText = uses == -1 ? "infinite" : String.valueOf(uses);
             commandSender.sendMessage("Sellwand updated with " + usesText + " uses and a multiplier of " + multiplier);

@@ -11,6 +11,7 @@ import github.nighter.smartspawner.spawner.interactions.type.SpawnEggHandler;
 import github.nighter.smartspawner.spawner.properties.SpawnerData;
 import github.nighter.smartspawner.spawner.properties.SpawnerManager;
 import github.nighter.smartspawner.Scheduler;
+import github.nighter.smartspawner.spawner.sell.SellResult;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -100,10 +101,19 @@ public class SpawnerClickManager implements Listener {
         if (heldItem.getType() == Material.BLAZE_ROD){
             SellwandManager sellwandManager = new SellwandManager(heldItem);
             if (sellwandManager.isSellwand(heldItem)) {
-                if (plugin.getSpawnerSellManager().sellAllItems(player, spawner, sellwandManager.getMulti(heldItem))) {
-                    if (!sellwandManager.sellWandUse()){
-                        player.getInventory().remove(heldItem);
-                    }
+                SellResult result = plugin.getSpawnerSellManager().sellAllItems(player, spawner, sellwandManager.getMulti(heldItem));
+
+                if (result == null) {
+                    return;
+                }
+
+                final Long amountSold = result.getItemsSold();
+                final Double moneyMade = result.getTotalValue();
+
+                player.sendMessage(amountSold + " sold by " + moneyMade);
+
+                if (!sellwandManager.sellWandUse(amountSold, moneyMade)) {
+                    player.getInventory().remove(heldItem);
                 }
             }
             return;

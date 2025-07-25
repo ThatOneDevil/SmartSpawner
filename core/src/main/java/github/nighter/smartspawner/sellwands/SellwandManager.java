@@ -1,6 +1,9 @@
 package github.nighter.smartspawner.sellwands;
 
 import github.nighter.smartspawner.SmartSpawner;
+import github.nighter.smartspawner.language.LanguageManager;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -11,13 +14,42 @@ import java.util.List;
 
 public class SellwandManager {
 
-    private ItemStack item;
+    private static final String KEY_USES = "uses";
+    private static final String KEY_MAX_USES = "maxUses";
+    private static final String KEY_MULTI = "multi";
+    private static final String KEY_SELLWAND = "sellwand";
+    private static final String KEY_AMOUNT_SOLD = "amountSold";
+    private static final String KEY_MONEY_MADE = "moneyMade";
+
+    private final NamespacedKey usesKey;
+    private final NamespacedKey maxUsesKey;
+    private final NamespacedKey multiKey;
+    private final NamespacedKey sellwandKey;
+    private final NamespacedKey amountSoldKey;
+    private final NamespacedKey moneyMadeKey;
+
+    private final ItemStack item;
+    private final LanguageManager languageManager;
+    private final MiniMessage mm;
+
 
     public SellwandManager(ItemStack item) {
         this.item = item;
+        SmartSpawner spawner = SmartSpawner.getInstance();
+        this.languageManager = spawner.getLanguageManager();
+        this.mm = MiniMessage.miniMessage();
+
+        // Initialize all NamespacedKey objects once
+        this.usesKey = new NamespacedKey(spawner, KEY_USES);
+        this.maxUsesKey = new NamespacedKey(spawner, KEY_MAX_USES);
+        this.multiKey = new NamespacedKey(spawner, KEY_MULTI);
+        this.sellwandKey = new NamespacedKey(spawner, KEY_SELLWAND);
+        this.amountSoldKey = new NamespacedKey(spawner, KEY_AMOUNT_SOLD);
+        this.moneyMadeKey = new NamespacedKey(spawner, KEY_MONEY_MADE);
     }
 
-    private ItemStack setNbt(Integer uses, Float multi) {
+
+    private ItemStack setNbt(int uses, float multi, long amountSold, double moneyMade) {
         if (item == null) return null;
 
         ItemMeta meta = item.getItemMeta();
@@ -25,102 +57,165 @@ public class SellwandManager {
 
         PersistentDataContainer container = meta.getPersistentDataContainer();
 
-        NamespacedKey usesKey = new NamespacedKey(SmartSpawner.getInstance(), "uses");
+        // Set uses and maxUses
         container.set(usesKey, PersistentDataType.INTEGER, uses);
+        if (!container.has(maxUsesKey, PersistentDataType.INTEGER) && uses != -1) {
+            container.set(maxUsesKey, PersistentDataType.INTEGER, uses);
+        }
 
-        NamespacedKey multiKey = new NamespacedKey(SmartSpawner.getInstance(), "multi");
+        // Set multiplier
         container.set(multiKey, PersistentDataType.FLOAT, multi);
 
-        NamespacedKey sellwandKey = new NamespacedKey(SmartSpawner.getInstance(), "sellwand");
+        // Mark as sellwand
         container.set(sellwandKey, PersistentDataType.BOOLEAN, true);
+
+        // Update amount sold (cumulative)
+        Long prevAmountSold = container.getOrDefault(amountSoldKey, PersistentDataType.LONG, 0L);
+        container.set(amountSoldKey, PersistentDataType.LONG, prevAmountSold + amountSold);
+
+        // Update money made (cumulative)
+        Double prevMoneyMade = container.getOrDefault(moneyMadeKey, PersistentDataType.DOUBLE, 0.0);
+        container.set(moneyMadeKey, PersistentDataType.DOUBLE, prevMoneyMade + moneyMade);
 
         item.setItemMeta(meta);
         return item;
     }
 
     public Integer getUses(ItemStack item) {
-        if (item == null) return null;
-        PersistentDataContainer container = item.getItemMeta().getPersistentDataContainer();
-        NamespacedKey usesKey = new NamespacedKey(SmartSpawner.getInstance(), "uses");
-        return container.get(usesKey, PersistentDataType.INTEGER);
+        if (item == null || !item.hasItemMeta()) return null;
+        return item.getItemMeta().getPersistentDataContainer().get(usesKey, PersistentDataType.INTEGER);
     }
 
     public Float getMulti(ItemStack item) {
-        if (item == null) return null;
-        PersistentDataContainer container = item.getItemMeta().getPersistentDataContainer();
-        NamespacedKey multiKey = new NamespacedKey(SmartSpawner.getInstance(), "multi");
-        return container.get(multiKey, PersistentDataType.FLOAT);
+        if (item == null || !item.hasItemMeta()) return null;
+        return item.getItemMeta().getPersistentDataContainer().get(multiKey, PersistentDataType.FLOAT);
     }
 
     public boolean isSellwand(ItemStack item) {
-        if (item == null) return false;
-        PersistentDataContainer container = item.getItemMeta().getPersistentDataContainer();
-        NamespacedKey sellwandKey = new NamespacedKey(SmartSpawner.getInstance(), "sellwand");
-        Boolean value = container.get(sellwandKey, PersistentDataType.BOOLEAN);
-        return value != null && value;
+        if (item == null || !item.hasItemMeta()) return false;
+        Boolean value = item.getItemMeta().getPersistentDataContainer()
+                .get(sellwandKey, PersistentDataType.BOOLEAN);
+        return Boolean.TRUE.equals(value);
     }
 
-    public Boolean sellWandUse(){
+    public boolean sellWandUse(long amountSold, double moneyMade) {
         if (item == null) return false;
 
         Integer uses = getUses(item);
         if (uses == null) return false;
 
-        // Special case for infinite uses (indicated by -1)
+        Float multi = getMulti(item);
+        if (multi == null) return false;
+
+        // Handle infinite uses case
         if (uses == -1) {
+            setNbt(uses, multi, amountSold, moneyMade);
+            updateDisplayAndLore(uses, multi);
             return true;
         }
 
-        // Regular usage for limited-use wands
+        // Handle limited uses case
         if (uses <= 0) return false;
 
+        // Decrement uses and check if depleted
         uses--;
-
         if (uses <= 0) {
             return false;
         }
 
-        setNbt(uses, getMulti(item));
-
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName("§6Sellwand");
-            meta.setLore(List.of("§7Right click to sell items",
-                    "§7Uses: " + uses,
-                    "§7Multiplier: " + getMulti(item) + "x"));
-            item.setItemMeta(meta);
-        }
+        // Update NBT data and display
+        setNbt(uses, multi, amountSold, moneyMade);
+        updateDisplayAndLore(uses, multi);
         return true;
     }
 
-    public ItemStack getSellwand(Integer uses, Float multi) {
-        item = setNbt(uses, multi);
+
+    private void updateDisplayAndLore(int uses, float multi) {
+        getSellwand(uses, multi, getAmountSold(item), getMoneyMade(item));
+    }
+
+
+    private List<Component> buildSellwandLore(Integer uses, Float multi, long amountSold, double moneyMade) {
+        String usesDisplay = (uses != null) ? (uses == -1 ? "∞" : String.valueOf(uses)) : "N/A";
+        String multiDisplay = (multi != null) ? String.valueOf(multi) : "N/A";
+
+        return List.of(
+            mm.deserialize("<!italic><gray>"),
+            mm.deserialize("<!italic><color:#FA1065>ɪɴꜰᴏ"),
+            mm.deserialize("<!italic><dark_gray><bold>▍<!bold> <white>Multiplier: <color:#FA1065>" + multiDisplay + "x"),
+            mm.deserialize("<!italic><dark_gray><bold>▍<!bold> <white>Uses: <color:#FA1065>" + usesDisplay),
+            mm.deserialize("<!italic><gray>"),
+            mm.deserialize("<!italic><color:#FA1065>ꜱᴛᴀᴛꜱ"),
+            mm.deserialize("<!italic><dark_gray><bold>▍<!bold> <white>Sold Items: <color:#FA1065>" + languageManager.formatNumber(amountSold)),
+            mm.deserialize("<!italic><dark_gray><bold>▍<!bold> <white>Money made: <color:#FA1065>" + languageManager.formatNumber(moneyMade) + "$"),
+            mm.deserialize("<!italic><gray>"),
+            mm.deserialize("<!italic><color:#FA1065><bold>><!bold> <color:#FA1065>Right Click <dark_gray>- <color:#FA1065>Sell!")
+        );
+    }
+
+    public ItemStack getSellwand(Integer uses, Float multi, Long amountSold, Double moneyMade) {
+        if (item == null) return null;
 
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return null;
 
-        meta.setDisplayName("§6Sellwand");
-        if (uses == -1) {
-            meta.setLore(List.of(
-                    "§eRight-click to instantly sell all items in the chest!",
-                    "§7Uses: §f∞",
-                    "§7Current multiplier: §b" + getMulti(item) + "x",
-                    "",
-                    "§8A powerful tool for quick selling."
-            ));
-        }else {
-            meta.setLore(List.of(
-                    "§eRight-click to instantly sell all items in the chest!",
-                    "§7Uses left: §f" + uses,
-                    "§7Current multiplier: §b" + getMulti(item) + "x",
-                    "",
-                    "§8A powerful tool for quick selling."
-            ));
+        PersistentDataContainer container = meta.getPersistentDataContainer();
+
+        // Update uses and maxUses if provided
+        if (uses != null) {
+            container.set(usesKey, PersistentDataType.INTEGER, uses);
+            if (!container.has(maxUsesKey, PersistentDataType.INTEGER) && uses != -1) {
+                container.set(maxUsesKey, PersistentDataType.INTEGER, uses);
+            }
         }
 
+        // Update multiplier if provided
+        if (multi != null) {
+            container.set(multiKey, PersistentDataType.FLOAT, multi);
+        }
+
+        // Ensure the sellwand flag is set
+        container.set(sellwandKey, PersistentDataType.BOOLEAN, true);
+
+        // Calculate percentage display if applicable
+        String percentageStr = "";
+        if (uses != null && uses > 0) {
+            Integer maxUses = getMaxUses(item);
+            if (maxUses != null && maxUses > 0) {
+                int percent = (int) Math.round((uses * 100.0) / maxUses);
+                percentageStr = "(" + percent + "%)";
+            }
+        }
+
+        // Use provided values or get from item
+        long displayAmountSold = (amountSold != null) ? amountSold : getAmountSold(item);
+        double displayMoneyMade = (moneyMade != null) ? moneyMade : getMoneyMade(item);
+
+        // Update display name and lore
+        Component displayName = mm.deserialize("<!italic><color:#FA1065><bold>ꜱᴘᴀᴡɴᴇʀ ꜱᴇʟʟᴡᴀɴᴅ <gray><!bold>" + percentageStr);
+        meta.displayName(displayName);
+        meta.lore(buildSellwandLore(uses, multi, displayAmountSold, displayMoneyMade));
+
         item.setItemMeta(meta);
-
         return item;
+    }
 
+    private Integer getMaxUses(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return null;
+        return item.getItemMeta().getPersistentDataContainer().get(maxUsesKey, PersistentDataType.INTEGER);
+    }
+
+    public long getAmountSold(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return 0L;
+
+        PersistentDataContainer container = item.getItemMeta().getPersistentDataContainer();
+        return container.getOrDefault(amountSoldKey, PersistentDataType.LONG, 0L);
+    }
+
+    public double getMoneyMade(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return 0.0;
+
+        PersistentDataContainer container = item.getItemMeta().getPersistentDataContainer();
+        return container.getOrDefault(moneyMadeKey, PersistentDataType.DOUBLE, 0.0);
     }
 }

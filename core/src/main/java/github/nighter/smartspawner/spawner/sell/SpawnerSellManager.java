@@ -14,6 +14,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class SpawnerSellManager {
     private final SmartSpawner plugin;
@@ -68,12 +69,12 @@ public class SpawnerSellManager {
         }
     }
 
-    public boolean sellAllItems(Player player, SpawnerData spawner, float sellMultiplier) {
+    public SellResult sellAllItems(Player player, SpawnerData spawner, float sellMultiplier) {
         // Try to acquire lock for thread safety
         boolean lockAcquired = spawner.getLock().tryLock();
         if (!lockAcquired) {
             messageService.sendMessage(player, "sale_failed");
-            return false;
+            return null;
         }
 
         try {
@@ -82,30 +83,30 @@ public class SpawnerSellManager {
             // Quick check if there are items to sell
             if (virtualInv.getUsedSlots() == 0) {
                 messageService.sendMessage(player, "no_items");
-                return false;
+                return null;
             }
 
-            // Get all items for async processing
+            // Get all items for processing
             Map<VirtualInventory.ItemSignature, Long> consolidatedItems = virtualInv.getConsolidatedItems();
 
-            // Process selling async to avoid blocking main thread
+            // Calculate the sell value synchronously for this method
+            SellResult result = calculateSellValue(consolidatedItems, spawner, sellMultiplier);
+
+            // Store the result in SpawnerData for later access
+            spawner.setLastSellResult(result);
+
+            // Schedule the processing asynchronously
             Scheduler.runTaskAsync(() -> {
-                SellResult result = calculateSellValue(consolidatedItems, spawner, sellMultiplier);
-
-                // Store the result in SpawnerData for later access
-                spawner.setLastSellResult(result);
-
                 // Return to main thread for inventory operations and player interaction
                 Scheduler.runLocationTask(spawner.getSpawnerLocation(), () -> {
                     processSellResult(player, spawner, result);
                 });
             });
 
+            return result;
         } finally {
             spawner.getLock().unlock();
-
         }
-        return true;
     }
 
 
