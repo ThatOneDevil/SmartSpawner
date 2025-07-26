@@ -107,10 +107,8 @@ public class SpawnerClickManager implements Listener {
                     return;
                 }
 
-                final Long amountSold = result.getItemsSold();
-                final Double moneyMade = result.getTotalValue();
-
-                player.sendMessage(amountSold + " sold by " + moneyMade);
+                final long amountSold = result.getItemsSold();
+                final double moneyMade = result.getTotalValue();
 
                 if (!sellwandManager.sellWandUse(amountSold, moneyMade)) {
                     player.getInventory().remove(heldItem);

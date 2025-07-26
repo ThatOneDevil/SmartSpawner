@@ -21,10 +21,9 @@ public class SellwandCommand implements CommandExecutor {
             return true;
         }
 
-        if (!(commandSender instanceof Player)){
+        if (!(commandSender instanceof Player player)){
             return false;
         }
-        Player player = (Player) commandSender;
 
         if (!player.isOp()) {
             commandSender.sendMessage("You do not have permission to use this command.");

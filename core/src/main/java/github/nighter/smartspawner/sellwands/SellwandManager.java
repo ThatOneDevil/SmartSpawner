@@ -11,6 +11,7 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.List;
+import java.util.UUID;
 
 public class SellwandManager {
 
@@ -20,6 +21,7 @@ public class SellwandManager {
     private static final String KEY_SELLWAND = "sellwand";
     private static final String KEY_AMOUNT_SOLD = "amountSold";
     private static final String KEY_MONEY_MADE = "moneyMade";
+    private static final String KEY_UUID = "sellwand_uuid";
 
     private final NamespacedKey usesKey;
     private final NamespacedKey maxUsesKey;
@@ -27,6 +29,7 @@ public class SellwandManager {
     private final NamespacedKey sellwandKey;
     private final NamespacedKey amountSoldKey;
     private final NamespacedKey moneyMadeKey;
+    private final NamespacedKey uuidKey;
 
     private final ItemStack item;
     private final LanguageManager languageManager;
@@ -46,16 +49,20 @@ public class SellwandManager {
         this.sellwandKey = new NamespacedKey(spawner, KEY_SELLWAND);
         this.amountSoldKey = new NamespacedKey(spawner, KEY_AMOUNT_SOLD);
         this.moneyMadeKey = new NamespacedKey(spawner, KEY_MONEY_MADE);
+        this.uuidKey = new NamespacedKey(spawner, KEY_UUID);
     }
 
 
-    private ItemStack setNbt(int uses, float multi, long amountSold, double moneyMade) {
-        if (item == null) return null;
+    private void setNbt(int uses, float multi, long amountSold, double moneyMade) {
+        if (item == null) return;
 
         ItemMeta meta = item.getItemMeta();
-        if (meta == null) return null;
+        if (meta == null) return;
 
         PersistentDataContainer container = meta.getPersistentDataContainer();
+
+        // Mark as sellwand
+        container.set(sellwandKey, PersistentDataType.BOOLEAN, true);
 
         // Set uses and maxUses
         container.set(usesKey, PersistentDataType.INTEGER, uses);
@@ -66,9 +73,6 @@ public class SellwandManager {
         // Set multiplier
         container.set(multiKey, PersistentDataType.FLOAT, multi);
 
-        // Mark as sellwand
-        container.set(sellwandKey, PersistentDataType.BOOLEAN, true);
-
         // Update amount sold (cumulative)
         Long prevAmountSold = container.getOrDefault(amountSoldKey, PersistentDataType.LONG, 0L);
         container.set(amountSoldKey, PersistentDataType.LONG, prevAmountSold + amountSold);
@@ -78,7 +82,6 @@ public class SellwandManager {
         container.set(moneyMadeKey, PersistentDataType.DOUBLE, prevMoneyMade + moneyMade);
 
         item.setItemMeta(meta);
-        return item;
     }
 
     public Integer getUses(ItemStack item) {
@@ -160,6 +163,8 @@ public class SellwandManager {
         if (meta == null) return null;
 
         PersistentDataContainer container = meta.getPersistentDataContainer();
+
+        container.set(uuidKey, PersistentDataType.STRING, UUID.randomUUID().toString());
 
         // Update uses and maxUses if provided
         if (uses != null) {
